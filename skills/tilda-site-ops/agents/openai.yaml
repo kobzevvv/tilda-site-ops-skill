@@ -1,0 +1,7 @@
+interface:
+  display_name: "Tilda Site Ops"
+  short_description: "Safely operate Tilda pages"
+  default_prompt: "Use $tilda-site-ops to back up a Tilda page, create a noindex staging duplicate, and prepare safe publication steps."
+policy:
+  allow_implicit_invocation: true
+

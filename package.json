@@ -1,0 +1,15 @@
+{
+  "name": "tilda-site-ops-skill",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Codex skill and helper scripts for safer Tilda site operations.",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "check": "node --check skills/tilda-site-ops/scripts/tilda-browser-lib.js && node --check skills/tilda-site-ops/scripts/tilda-capture-storage-state.js && node --check skills/tilda-site-ops/scripts/tilda-backup-page.js && node --check skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}
+
