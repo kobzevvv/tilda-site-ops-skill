@@ -16,7 +16,7 @@ const PAGE_ID = requiredEnv('TILDA_PAGE_ID');
 const BACKUP_DIR = process.env.TILDA_BACKUP_DIR || path.resolve(process.cwd(), 'backups');
 
 async function main() {
-  const { context, page } = await openTildaContext();
+  const { context, page } = await openTildaContext({ preferStorageState: true });
   try {
     await gotoProject(page, PROJECT_ID);
     const pageData = await page.evaluate(async ({ PAGE_ID }) => {
@@ -51,4 +51,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

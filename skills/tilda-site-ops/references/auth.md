@@ -1,13 +1,14 @@
 # Tilda Authorization
 
-Use a real browser session. Headless Tilda sessions are often unreliable.
+Use a real browser session for login and human checks. After a valid storage state is captured, prefer headless/API work for routine Tilda operations.
 
 Recommended environment:
 
 ```bash
 TILDA_PROJECT_ID=289314
-TILDA_LOGIN_PROFILE=/tmp/tilda-login-profile-project-name
-TILDA_STORAGE_STATE=/tmp/tilda-state-project-name.json
+TILDA_STATE_DIR=$HOME/.local/state/tilda-site-ops/project-name
+TILDA_LOGIN_PROFILE=$TILDA_STATE_DIR/chrome-profile
+TILDA_STORAGE_STATE=$TILDA_STATE_DIR/storage-state.json
 ```
 
 Run:
@@ -34,3 +35,40 @@ node skills/tilda-site-ops/scripts/tilda-capture-storage-state.js --prefill-logi
 
 Never commit the resulting session file or browser profile.
 
+## Headless After Auth
+
+Once `TILDA_STORAGE_STATE` exists and API auth checks pass, do not keep opening Tilda in a foreground Chrome window for normal work. Bundled routine scripts prefer `storageState` automatically when `TILDA_STORAGE_STATE` is set:
+
+```bash
+TILDA_HEADLESS=1 \
+TILDA_STORAGE_STATE=$HOME/.local/state/tilda-site-ops/project-name/storage-state.json \
+node skills/tilda-site-ops/scripts/tilda-backup-page.js
+```
+
+If `TILDA_STORAGE_STATE` is missing, bundled routine scripts should fail rather than quietly opening a persistent Chrome profile. Set `TILDA_ALLOW_PERSISTENT_ROUTINE=1` only for an intentional one-off fallback.
+
+or a Playwright script that loads `storageState`:
+
+```js
+const { chromium } = require('playwright');
+
+const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+const context = await browser.newContext({ storageState: process.env.TILDA_STORAGE_STATE });
+const page = await context.newPage();
+await page.goto('https://tilda.ru/projects/', { waitUntil: 'domcontentloaded' });
+```
+
+If Chromium's bundled headless shell is missing in the current repo, use `channel: 'chrome'` or an existing authenticated browser context. Visible Chrome should be reserved for login/CAPTCHA or visual QA.
+
+## Parallel Session Rules
+
+`TILDA_LOGIN_PROFILE` is a persistent Chrome user data directory. Only one browser process should use a given profile at a time; concurrent launches can fail at browser startup or corrupt/invalidate local browser state.
+
+`TILDA_STORAGE_STATE` is a JSON snapshot of cookies and browser storage. It can be loaded by multiple independent headless contexts for reads and ordinary API calls. Treat the file as a secret and as read-only during routine work; only the capture/refresh flow should overwrite it.
+
+Recommended multi-agent setup:
+
+- Store one durable state directory per Tilda account or project outside any repository.
+- Capture manually into that directory when auth expires.
+- Give routine agents the same `TILDA_STORAGE_STATE`, not the same `TILDA_LOGIN_PROFILE`.
+- Serialize state refreshes and production writes to the same page.

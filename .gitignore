@@ -4,4 +4,7 @@ backups/
 *.log
 *.tmp
 *.local
-
+.auth/
+chrome-profile/
+storage-state*.json
+tilda-state*.json

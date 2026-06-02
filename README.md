@@ -46,28 +46,31 @@ Capture a Tilda session:
 
 ```bash
 TILDA_PROJECT_ID=289314 \
-TILDA_LOGIN_PROFILE=/tmp/tilda-login-profile-innovator \
-TILDA_STORAGE_STATE=/tmp/tilda-state-innovator.json \
+TILDA_STATE_DIR="$HOME/.local/state/tilda-site-ops/innovator" \
+TILDA_LOGIN_PROFILE="$TILDA_STATE_DIR/chrome-profile" \
+TILDA_STORAGE_STATE="$TILDA_STATE_DIR/storage-state.json" \
 node skills/tilda-site-ops/scripts/tilda-capture-storage-state.js
 ```
 
 Back up a page:
 
 ```bash
+TILDA_HEADLESS=1 \
 TILDA_PROJECT_ID=289314 \
 TILDA_PAGE_ID=20631846 \
-TILDA_LOGIN_PROFILE=/tmp/tilda-login-profile-innovator \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/innovator/storage-state.json" \
 node skills/tilda-site-ops/scripts/tilda-backup-page.js
 ```
 
 Create a staging duplicate:
 
 ```bash
+TILDA_HEADLESS=1 \
 TILDA_PROJECT_ID=289314 \
 TILDA_SOURCE_PAGE_ID=20631846 \
 TILDA_STAGING_ALIAS=mincifra-test \
 TILDA_STAGING_TITLE='Инноватор: главная - тест Минцифры' \
-TILDA_LOGIN_PROFILE=/tmp/tilda-login-profile-innovator \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/innovator/storage-state.json" \
 TILDA_CONFIRM_CREATE=1 \
 node skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js
 ```
@@ -78,5 +81,5 @@ node skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js
 - Save JSON backups under `backups/`.
 - Keep staging pages closed from indexing.
 - Verify public URLs after publishing.
-- Do not commit `/tmp` session files or browser profiles.
-
+- Do not commit session files, storage-state JSON, or browser profiles.
+- Do not run multiple persistent Chrome sessions with the same `TILDA_LOGIN_PROFILE`; share `TILDA_STORAGE_STATE` for routine headless work instead.

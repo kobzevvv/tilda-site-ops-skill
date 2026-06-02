@@ -19,7 +19,7 @@ async function main() {
     throw new Error('Refusing to create a Tilda page without TILDA_CONFIRM_CREATE=1.');
   }
 
-  const { context, page } = await openTildaContext();
+  const { context, page } = await openTildaContext({ preferStorageState: true });
   try {
     await gotoProject(page, PROJECT_ID);
     const result = await page.evaluate(
@@ -138,4 +138,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-
