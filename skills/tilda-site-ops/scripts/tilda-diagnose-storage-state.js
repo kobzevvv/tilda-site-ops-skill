@@ -5,20 +5,14 @@ const {
   gotoProject,
   isTildaApiAuthorized,
   openStorageStateContext,
-  requiredEnv
+  requiredEnv,
+  tildaCookieNames
 } = require('./tilda-browser-lib');
 
 const PROJECT_ID = requiredEnv('TILDA_PROJECT_ID');
 const STORAGE_STATE = requiredEnv('TILDA_STORAGE_STATE');
 const CHECK_PAGE_ID = process.env.TILDA_AUTH_CHECK_PAGE_ID || process.env.TILDA_PAGE_ID || '';
 const CHECK_RECORD_ID = process.env.TILDA_AUTH_CHECK_RECORD_ID || '';
-
-function tildaCookieNames(cookies) {
-  return cookies
-    .filter((cookie) => String(cookie.domain || '').includes('tilda'))
-    .map((cookie) => cookie.name)
-    .sort();
-}
 
 async function main() {
   const rawState = JSON.parse(fs.readFileSync(STORAGE_STATE, 'utf8'));

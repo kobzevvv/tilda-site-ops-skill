@@ -20,7 +20,7 @@ async function main() {
 
   if (!auth.ok) {
     console.error(JSON.stringify({ ok: false, ...auth }, null, 2));
-    process.exit(2);
+    process.exit(auth.likelyProfileBound ? 3 : 2);
   }
 
   console.log(JSON.stringify({ ok: true, projectid: PROJECT_ID, storageState: STORAGE_STATE }, null, 2));

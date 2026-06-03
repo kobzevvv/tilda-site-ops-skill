@@ -24,6 +24,13 @@ function safeFileSegment(value) {
     .slice(0, 120) || 'tilda';
 }
 
+function tildaCookieNames(cookies) {
+  return cookies
+    .filter((cookie) => String(cookie.domain || '').includes('tilda'))
+    .map((cookie) => cookie.name)
+    .sort();
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -264,8 +271,21 @@ async function validateStorageStateAuth(options = {}) {
   if (!projectId) throw new Error('Missing projectId or TILDA_PROJECT_ID for storage-state validation.');
   const { context, page } = await openStorageStateContext({ storageState: options.storageState });
   try {
+    const beforeCookieNames = tildaCookieNames(await context.cookies('https://tilda.ru'));
     await gotoProject(page, projectId);
-    return await isTildaApiAuthorized(context, page, options);
+    const afterCookieNames = tildaCookieNames(await context.cookies('https://tilda.ru'));
+    const auth = await isTildaApiAuthorized(context, page, options);
+    const hadAuthCookiesBefore = beforeCookieNames.includes('userid') && beforeCookieNames.includes('hash');
+    const hasAuthCookiesAfter = afterCookieNames.includes('userid') && afterCookieNames.includes('hash');
+    return {
+      ...auth,
+      currentUrl: page.url(),
+      cookieNames: {
+        beforeNavigation: beforeCookieNames,
+        afterNavigation: afterCookieNames
+      },
+      likelyProfileBound: !auth.ok && hadAuthCookiesBefore && !hasAuthCookiesAfter && /\/login\//i.test(page.url())
+    };
   } finally {
     await context.close();
   }
@@ -287,6 +307,7 @@ module.exports = {
   postFromTildaPage,
   requiredEnv,
   safeFileSegment,
+  tildaCookieNames,
   timestamp,
   validateStorageStateAuth
 };

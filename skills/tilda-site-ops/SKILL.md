@@ -92,7 +92,7 @@ Capture must validate the saved `TILDA_STORAGE_STATE` in a new clean browser con
 
 Scripts create local `*.lock/` directories around persistent Chrome profiles and storage-state writes and refresh active locks with a heartbeat. If a lock blocks work, first check for a running Tilda/Playwright process; remove stale locks only when no owner process is active. `TILDA_LOCK_STALE_MS` controls automatic stale-lock cleanup.
 
-If the state file contains Tilda `userid`/`hash` cookies but a fresh context loses them after navigation and lands on `/login/`, treat the session as profile-bound and non-portable. Do not use that file as routine state. A visible persistent profile may be used only as an explicitly reported manual authenticated browser for inspection or one-off human-supervised work, never as a hidden fallback for routine scripts.
+If the state file contains Tilda `userid`/`hash` cookies but a fresh context loses them after navigation and lands on `/login/`, treat the session as profile-bound and non-portable. Capture must stop immediately instead of retrying in a loop. Do not use that file as routine state. A visible persistent profile may be used only as an explicitly reported manual authenticated browser for inspection or one-off human-supervised work, never as a hidden fallback for routine scripts.
 
 When using manual profile workbench mode, keep all authenticated Tilda reads/writes inside the same persistent browser context and process that waited for login. Do not authenticate in one process and then start a separate routine script expecting `TILDA_STORAGE_STATE` to work.
 

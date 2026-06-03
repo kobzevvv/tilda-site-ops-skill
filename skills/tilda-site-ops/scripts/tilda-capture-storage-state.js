@@ -92,6 +92,12 @@ async function main() {
           fs.rmSync(tmpStateFile, { force: true });
           console.log(`Current browser is authorized, but saved storageState fails in a fresh context. Reason: ${freshAuth.reason}`);
           if (freshAuth.preview) console.log(`Fresh-context API preview: ${freshAuth.preview}`);
+          if (freshAuth.likelyProfileBound) {
+            throw new Error(
+              'Saved storageState is profile-bound/non-portable: Tilda accepts the visible profile but clears auth cookies in a fresh context. ' +
+              'Do not keep retrying capture in this state. Use tilda-manual-profile-workbench.js for one-off same-profile work, or retry capture later/new login until fresh validation passes.'
+            );
+          }
           await page.waitForTimeout(1000);
           continue;
         }

@@ -92,7 +92,7 @@ Tilda may issue a session that works in the visible Chrome profile but is not po
 - A fresh context initially loads those cookie names.
 - After navigating to the Tilda project, Tilda clears those cookies and redirects to `/login/`.
 
-When this happens, the user is logged in, but the saved state is not a valid routine-state. Do not mark capture successful, do not use that state for routine API/write/publish scripts, and do not silently fall back to `TILDA_LOGIN_PROFILE`.
+When this happens, the user is logged in, but the saved state is not a valid routine-state. Capture must stop immediately with a profile-bound/non-portable message instead of retrying until timeout. Do not mark capture successful, do not use that state for routine API/write/publish scripts, and do not silently fall back to `TILDA_LOGIN_PROFILE`.
 
 Allowed handling:
 
