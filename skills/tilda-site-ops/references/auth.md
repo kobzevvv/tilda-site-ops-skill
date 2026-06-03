@@ -121,3 +121,27 @@ Recommended multi-agent setup:
 - Give routine agents the same `TILDA_STORAGE_STATE`, not the same `TILDA_LOGIN_PROFILE`.
 - Serialize state refreshes and production writes to the same page.
 - Avoid `/tmp` for real work because it is not durable and is easy to mix up between projects or agents.
+
+## Cross-Session Handoff
+
+Skills store general rules; project runbooks store project-specific IDs, URLs, and local state paths. Do not put project-specific auth paths into this skill.
+
+For every recurring Tilda project, create a repository runbook such as `workdocs/tilda-site-ops-runbook-<project>.md` with:
+
+- `TILDA_PROJECT_ID`, relevant `TILDA_PAGE_ID` values, and public URLs.
+- Canonical `TILDA_STATE_DIR`, `TILDA_STORAGE_STATE`, and, only if needed, `TILDA_LOGIN_PROFILE`.
+- Current auth status: `portable-storage-state`, `profile-bound`, or `unknown`.
+- Which project-specific scripts are compliant with storage-state-only routine mode.
+- Any known manual-profile exception and the exact env flag required to use it.
+
+Add only a short pointer in `AGENTS.md` and `CLAUDE.md`:
+
+```md
+Before Tilda work, read the tilda-site-ops skill and workdocs/tilda-site-ops-runbook-<project>.md.
+```
+
+Do not duplicate cookies, `csrf`, upload keys, request dumps, or credentials in runbooks. Other sessions should discover secrets only from the local state paths described by the runbook.
+
+Before using any project-specific Tilda script, inspect whether it calls `launchPersistentContext` or reads `TILDA_LOGIN_PROFILE`. If it does, do not run it for routine work. Patch it to `browser.newContext({ storageState })`, or run it only as an explicit manual-profile exception with `TILDA_CONFIRM_MANUAL_PROFILE=1` and report that exception to the user.
+
+If a project-specific script opens a visible browser without an explicit manual-mode env flag, treat it as non-compliant and stop.
