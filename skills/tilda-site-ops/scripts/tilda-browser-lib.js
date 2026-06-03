@@ -82,17 +82,15 @@ async function openStorageStateContext(options = {}) {
 }
 
 async function openTildaContext(options = {}) {
-  if (options.preferStorageState && process.env.TILDA_STORAGE_STATE) {
+  if (options.preferStorageState) {
     return openStorageStateContext(options);
   }
-  if (options.preferStorageState && process.env.TILDA_ALLOW_PERSISTENT_ROUTINE !== '1') {
-    throw new Error(
-      'Routine Tilda scripts require TILDA_STORAGE_STATE to avoid opening or locking a persistent Chrome profile. ' +
-      'Run tilda-capture-storage-state.js first, or set TILDA_ALLOW_PERSISTENT_ROUTINE=1 to explicitly use TILDA_LOGIN_PROFILE.'
-    );
+
+  const userDataDir = options.userDataDir || process.env.TILDA_LOGIN_PROFILE;
+  if (!userDataDir) {
+    throw new Error('Missing TILDA_LOGIN_PROFILE for manual login/capture browser mode.');
   }
 
-  const userDataDir = options.userDataDir || process.env.TILDA_LOGIN_PROFILE || '/tmp/tilda-login-profile';
   const headless = process.env.TILDA_HEADLESS === '1';
   const windowPosition = process.env.TILDA_WINDOW_POSITION || '2400,100';
   const windowSize = process.env.TILDA_WINDOW_SIZE || '1200,900';
@@ -113,6 +111,111 @@ async function openTildaContext(options = {}) {
   return { context, page, mode: 'persistent' };
 }
 
+async function postFromTildaPage(page, urlPath, data) {
+  return page.evaluate(
+    async ({ urlPath: path, data: payload }) => {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'x-requested-with': 'XMLHttpRequest'
+        },
+        body: new URLSearchParams(payload).toString(),
+        credentials: 'same-origin'
+      });
+      return {
+        status: response.status,
+        text: (await response.text()).replace(/^<!--tlp-->/, '')
+      };
+    },
+    { urlPath, data }
+  );
+}
+
+async function isTildaApiAuthorized(context, page, options = {}) {
+  const projectId = options.projectId || process.env.TILDA_PROJECT_ID;
+  if (!projectId) throw new Error('Missing projectId or TILDA_PROJECT_ID for auth check.');
+
+  const checkPageId = options.checkPageId || process.env.TILDA_AUTH_CHECK_PAGE_ID || process.env.TILDA_PAGE_ID || '';
+  const checkRecordId = options.checkRecordId || process.env.TILDA_AUTH_CHECK_RECORD_ID || '';
+  const cookies = await context.cookies('https://tilda.ru');
+  const names = new Set(cookies.filter((cookie) => String(cookie.domain || '').includes('tilda')).map((cookie) => cookie.name));
+  if (!names.has('userid') || !names.has('hash')) {
+    return {
+      ok: false,
+      reason: `missing auth cookies: ${['userid', 'hash'].filter((name) => !names.has(name)).join(', ')}`,
+      cookies: [...names].sort()
+    };
+  }
+
+  const projectResponse = await postFromTildaPage(page, '/projects/get/getprojects/', {
+    comm: 'getprojectslist',
+    projectid: projectId
+  });
+  const projectPreview = projectResponse.text.replace(/\s+/g, ' ').slice(0, 220);
+  if (/not authorized|login to<\/a> your account|<title>Sign in - Tilda<\/title>|\/login\//iu.test(projectResponse.text)) {
+    return {
+      ok: false,
+      reason: 'Tilda project API returns login page',
+      status: projectResponse.status,
+      preview: projectPreview
+    };
+  }
+  try {
+    const project = JSON.parse(projectResponse.text);
+    if (!project.csrf) {
+      return { ok: false, reason: 'Project API JSON has no csrf', status: projectResponse.status, preview: projectPreview };
+    }
+  } catch {
+    return { ok: false, reason: 'Project API did not return JSON', status: projectResponse.status, preview: projectPreview };
+  }
+
+  if (checkPageId) {
+    const pageResponse = await postFromTildaPage(page, '/page/get/getpage/', { pageid: checkPageId });
+    const pagePreview = pageResponse.text.replace(/\s+/g, ' ').slice(0, 220);
+    try {
+      const parsed = JSON.parse(pageResponse.text);
+      if (!parsed.page && !parsed.records) {
+        return { ok: false, reason: 'Page API JSON has no page or records', status: pageResponse.status, preview: pagePreview };
+      }
+    } catch {
+      return { ok: false, reason: 'Page API did not return JSON', status: pageResponse.status, preview: pagePreview };
+    }
+  }
+
+  if (checkPageId && checkRecordId) {
+    const recordResponse = await postFromTildaPage(page, '/page/edit/', {
+      pageid: checkPageId,
+      recordid: checkRecordId,
+      tab: 'content',
+      comm: 'editrecordcontent'
+    });
+    const recordPreview = recordResponse.text.replace(/\s+/g, ' ').slice(0, 220);
+    try {
+      const parsed = JSON.parse(recordResponse.text);
+      if (!parsed.record) {
+        return { ok: false, reason: 'Record API JSON has no record', status: recordResponse.status, preview: recordPreview };
+      }
+    } catch {
+      return { ok: false, reason: 'Record API did not return JSON', status: recordResponse.status, preview: recordPreview };
+    }
+  }
+
+  return { ok: true };
+}
+
+async function validateStorageStateAuth(options = {}) {
+  const projectId = options.projectId || process.env.TILDA_PROJECT_ID;
+  if (!projectId) throw new Error('Missing projectId or TILDA_PROJECT_ID for storage-state validation.');
+  const { context, page } = await openStorageStateContext({ storageState: options.storageState });
+  try {
+    await gotoProject(page, projectId);
+    return await isTildaApiAuthorized(context, page, options);
+  } finally {
+    await context.close();
+  }
+}
+
 async function gotoProject(page, projectId) {
   await page.goto(`https://tilda.ru/projects/?projectid=${projectId}`, {
     waitUntil: 'domcontentloaded'
@@ -122,9 +225,12 @@ async function gotoProject(page, projectId) {
 module.exports = {
   ensureDir,
   gotoProject,
+  isTildaApiAuthorized,
   openStorageStateContext,
   openTildaContext,
+  postFromTildaPage,
   requiredEnv,
   safeFileSegment,
-  timestamp
+  timestamp,
+  validateStorageStateAuth
 };

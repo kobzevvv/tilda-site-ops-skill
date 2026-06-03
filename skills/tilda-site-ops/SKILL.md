@@ -18,11 +18,13 @@ Use this skill for Tilda work that touches live projects, page copies, blocks, s
 - Back up the target page JSON before any write operation.
 - Set staging pages to `nosearch=yes` and `meta_nofollow=yes`.
 - Verify the public URL after publishing; API success alone is not enough.
+- Do QA from the user-facing public page after publish. Internal Tilda API success is not a visual or SEO verification.
 
 ## Reference Loading
 
 - For login/session work, read `references/auth.md`.
 - For page duplication, block operations, settings, and publishing, read `references/api-workflow.md`.
+- For public-page verification or visual/content changes, read `references/qa.md`.
 - Before making destructive or production changes, read `references/safety-checklist.md`.
 
 ## Script Preference
@@ -30,8 +32,10 @@ Use this skill for Tilda work that touches live projects, page copies, blocks, s
 Use bundled scripts when they fit the task:
 
 - `scripts/tilda-capture-storage-state.js` for manual browser login and local session capture.
+- `scripts/tilda-validate-storage-state.js` before routine work if auth freshness is uncertain.
 - `scripts/tilda-backup-page.js` before edits.
 - `scripts/tilda-create-staging-duplicate.js` to create a noindex staging page from a production page.
+- `scripts/tilda-publish-page.js` for storage-state-only publishing and optional public URL verification.
 
 All scripts are configured by environment variables and should be copied or patched for project-specific needs rather than hardcoding secrets.
 
@@ -57,13 +61,13 @@ For bundled scripts and project-specific scripts, run routine Tilda operations w
 
 ```bash
 TILDA_HEADLESS=1 \
-TILDA_STORAGE_STATE=/tmp/tilda-state-project-name.json \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/project-name/storage-state.json" \
 node path/to/script.js
 ```
 
 If a script opens Chrome visibly during routine work, pass `TILDA_STORAGE_STATE` and set `TILDA_HEADLESS=1`, or use a storage-state based Playwright `browser.newContext({ storageState })` flow. Do not use visible Chrome merely to call Tilda internal endpoints.
 
-Bundled routine scripts should fail instead of falling back to a persistent profile when `TILDA_STORAGE_STATE` is missing. Use `TILDA_ALLOW_PERSISTENT_ROUTINE=1` only when a human intentionally accepts a foreground/persistent-profile run.
+Bundled routine scripts must fail instead of falling back to a persistent profile when `TILDA_STORAGE_STATE` is missing.
 
 ## Session Storage
 
@@ -75,9 +79,11 @@ TILDA_LOGIN_PROFILE="$TILDA_STATE_DIR/chrome-profile"
 TILDA_STORAGE_STATE="$TILDA_STATE_DIR/storage-state.json"
 ```
 
-On macOS, `$HOME/Library/Application Support/tilda-site-ops/project-name` is also acceptable. `/tmp` is fine for throwaway sessions, but it is not a durable secret store.
+On macOS, `$HOME/Library/Application Support/tilda-site-ops/project-name` is also acceptable. Do not use `/tmp` for real Tilda work: it is easy to lose, overwrite, or confuse across agents, which makes valid sessions look expired.
 
 Never commit storage state, Chrome profiles, credentials, `csrf`, upload keys, or request dumps. If a repository needs sample config, commit only `.env.example` placeholders.
+
+Capture must validate the saved `TILDA_STORAGE_STATE` in a new clean browser context before treating it as usable. Passing auth in the visible/persistent login browser is not enough.
 
 ## Parallel Agents
 
@@ -87,3 +93,16 @@ Safe pattern:
 - Routine agents read the same `TILDA_STORAGE_STATE` into separate headless contexts.
 - Do not run two capture/refresh operations for the same profile or state file at the same time.
 - Avoid simultaneous writes to the same Tilda `pageid`, alias, or block records unless the task is intentionally coordinated.
+
+## QA Rules
+
+Apply QA proportionally to the change, but never skip the basics after a publish:
+
+- Verify the published public URL returns `200` after redirects.
+- Verify expected visible text is present on the public page.
+- Verify desktop and mobile layouts for the changed area, especially Zero Block, forms, headers, sticky elements, and responsive typography.
+- Check title, description, canonical, indexing, and `nofollow` expectations for staging vs production.
+- For staging pages, confirm `nosearch=yes` and `meta_nofollow=yes` before sharing or publishing.
+- For forms, buttons, menus, anchors, downloads, and embeds, test the actual interaction, not only that the element exists.
+- For visual/content edits, compare before/after or backup JSON against the intended scope and report the changed `pageid`, public URL, backup path, and publish response.
+- Do not mark the task done from Tilda API responses alone; public-page QA is the completion signal.

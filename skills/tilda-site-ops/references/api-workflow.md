@@ -16,6 +16,12 @@ These are internal Tilda web endpoints used from an authenticated `https://tilda
 | Delete block | `POST /page/submit/` | `comm=deleterecord`, `pageid`, `recordid` |
 | Publish page | `POST /page/publish/` | `projectid`, `pageid` |
 
+## Runtime Requirements
+
+Routine reads, writes, settings saves, block operations, and publishing must use a validated durable `TILDA_STORAGE_STATE` in a fresh headless browser context. Do not use `launchPersistentContext` or `TILDA_LOGIN_PROFILE` for routine API work.
+
+Before write/publish work, run `scripts/tilda-validate-storage-state.js` when the state freshness is uncertain. If validation fails, stop and refresh the state through manual capture.
+
 ## Page Settings
 
 Tilda can return `200 OK` while rejecting incomplete settings. Include the existing page values where possible and explicitly set:
@@ -57,3 +63,19 @@ Check the response body. Treat anything except exact `OK` as suspicious unless t
 6. Verify the public staging URL.
 7. Apply the final change to production only after approval.
 
+## Publish Pattern
+
+Use `scripts/tilda-publish-page.js` or the same storage-state-only pattern:
+
+```bash
+TILDA_HEADLESS=1 \
+TILDA_PROJECT_ID=289314 \
+TILDA_PAGE_ID=20631846 \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/project-name/storage-state.json" \
+TILDA_PUBLIC_URL="https://example.com/page" \
+TILDA_VERIFY_TEXT="Expected public text" \
+TILDA_CONFIRM_PUBLISH=1 \
+node skills/tilda-site-ops/scripts/tilda-publish-page.js
+```
+
+Treat publish as incomplete until the public URL is checked.

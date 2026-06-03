@@ -18,12 +18,15 @@ skills/tilda-site-ops/
   references/
     api-workflow.md
     auth.md
+    qa.md
     safety-checklist.md
   scripts/
     tilda-browser-lib.js
     tilda-backup-page.js
     tilda-capture-storage-state.js
     tilda-create-staging-duplicate.js
+    tilda-publish-page.js
+    tilda-validate-storage-state.js
 ```
 
 ## Install Locally
@@ -52,6 +55,14 @@ TILDA_STORAGE_STATE="$TILDA_STATE_DIR/storage-state.json" \
 node skills/tilda-site-ops/scripts/tilda-capture-storage-state.js
 ```
 
+Validate a saved session before routine work:
+
+```bash
+TILDA_PROJECT_ID=289314 \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/innovator/storage-state.json" \
+node skills/tilda-site-ops/scripts/tilda-validate-storage-state.js
+```
+
 Back up a page:
 
 ```bash
@@ -75,6 +86,19 @@ TILDA_CONFIRM_CREATE=1 \
 node skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js
 ```
 
+Publish and verify a page:
+
+```bash
+TILDA_HEADLESS=1 \
+TILDA_PROJECT_ID=289314 \
+TILDA_PAGE_ID=20631846 \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/innovator/storage-state.json" \
+TILDA_PUBLIC_URL="https://example.com/page" \
+TILDA_VERIFY_TEXT="Expected public text" \
+TILDA_CONFIRM_PUBLISH=1 \
+node skills/tilda-site-ops/scripts/tilda-publish-page.js
+```
+
 ## Safety Defaults
 
 - Use a staging duplicate before touching a production page.
@@ -83,3 +107,5 @@ node skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js
 - Verify public URLs after publishing.
 - Do not commit session files, storage-state JSON, or browser profiles.
 - Do not run multiple persistent Chrome sessions with the same `TILDA_LOGIN_PROFILE`; share `TILDA_STORAGE_STATE` for routine headless work instead.
+- Do not use `/tmp` for durable Tilda session state.
+- Run public-page QA after publish: status, expected text, desktop/mobile layout, SEO/indexing flags, and changed interactions.

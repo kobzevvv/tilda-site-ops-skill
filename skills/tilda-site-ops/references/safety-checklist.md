@@ -4,6 +4,7 @@ Before writes:
 
 - Confirm the `projectid` and `pageid`.
 - Confirm whether the target is staging or production.
+- Validate `TILDA_STORAGE_STATE` in a fresh context; do not use persistent-profile fallback for routine writes.
 - Back up the page JSON.
 - Keep credentials and session files outside the repo.
 - For staging, set `nosearch=yes` and `meta_nofollow=yes`.
@@ -21,5 +22,6 @@ After publish:
 - Check visible text is present.
 - Check title, description, canonical, and robots/noindex expectations.
 - Check desktop and mobile for broken layout.
+- Test changed interactions: forms, links, menus, buttons, embeds, downloads, and anchors.
+- Compare the public page against the intended scope of change; watch for header/footer or shared-block side effects.
 - Keep a report with page id, alias, public URL, backup path, and publish response.
-

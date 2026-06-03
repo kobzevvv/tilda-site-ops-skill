@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 
 const fs = require('fs');
+const path = require('path');
 const { execFileSync } = require('child_process');
 const {
   gotoProject,
+  isTildaApiAuthorized,
   openTildaContext,
-  requiredEnv
+  requiredEnv,
+  validateStorageStateAuth
 } = require('./tilda-browser-lib');
 
 const PROJECT_ID = requiredEnv('TILDA_PROJECT_ID');
 const CHECK_PAGE_ID = process.env.TILDA_AUTH_CHECK_PAGE_ID || process.env.TILDA_PAGE_ID || '';
 const CHECK_RECORD_ID = process.env.TILDA_AUTH_CHECK_RECORD_ID || '';
-const STATE_FILE = process.env.TILDA_STORAGE_STATE || '/tmp/tilda-state.json';
+const STATE_FILE = requiredEnv('TILDA_STORAGE_STATE');
 const PREFILL_LOGIN = process.argv.includes('--prefill-login');
 const LOGIN_EMAIL = process.env.TILDA_LOGIN_EMAIL || '';
 const LOGIN_PASSWORD = process.env.TILDA_LOGIN_PASSWORD || '';
@@ -33,94 +36,6 @@ async function revealBrowserForHumanCheck(page) {
   } catch {
     // Best effort.
   }
-}
-
-async function postFromTildaPage(page, urlPath, data) {
-  return page.evaluate(
-    async ({ urlPath: path, data: payload }) => {
-      const response = await fetch(path, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'x-requested-with': 'XMLHttpRequest'
-        },
-        body: new URLSearchParams(payload).toString(),
-        credentials: 'same-origin'
-      });
-      return {
-        status: response.status,
-        text: (await response.text()).replace(/^<!--tlp-->/, '')
-      };
-    },
-    { urlPath, data }
-  );
-}
-
-async function isApiAuthorized(context, page) {
-  const cookies = await context.cookies('https://tilda.ru');
-  const names = new Set(cookies.filter((cookie) => String(cookie.domain || '').includes('tilda')).map((cookie) => cookie.name));
-  if (!names.has('userid') || !names.has('hash')) {
-    return {
-      ok: false,
-      reason: `missing auth cookies: ${['userid', 'hash'].filter((name) => !names.has(name)).join(', ')}`,
-      cookies: [...names].sort()
-    };
-  }
-
-  const projectResponse = await postFromTildaPage(page, '/projects/get/getprojects/', {
-    comm: 'getprojectslist',
-    projectid: PROJECT_ID
-  });
-  const projectPreview = projectResponse.text.replace(/\s+/g, ' ').slice(0, 220);
-  if (/not authorized|login to<\/a> your account|<title>Sign in - Tilda<\/title>|\/login\//iu.test(projectResponse.text)) {
-    return {
-      ok: false,
-      reason: 'Tilda project API returns login page',
-      status: projectResponse.status,
-      preview: projectPreview
-    };
-  }
-  try {
-    const project = JSON.parse(projectResponse.text);
-    if (!project.csrf) {
-      return { ok: false, reason: 'Project API JSON has no csrf', status: projectResponse.status, preview: projectPreview };
-    }
-  } catch {
-    return { ok: false, reason: 'Project API did not return JSON', status: projectResponse.status, preview: projectPreview };
-  }
-
-  if (CHECK_PAGE_ID) {
-    const pageResponse = await postFromTildaPage(page, '/page/get/getpage/', { pageid: CHECK_PAGE_ID });
-    const pagePreview = pageResponse.text.replace(/\s+/g, ' ').slice(0, 220);
-    try {
-      const parsed = JSON.parse(pageResponse.text);
-      if (!parsed.page && !parsed.records) {
-        return { ok: false, reason: 'Page API JSON has no page or records', status: pageResponse.status, preview: pagePreview };
-      }
-    } catch {
-      return { ok: false, reason: 'Page API did not return JSON', status: pageResponse.status, preview: pagePreview };
-    }
-  }
-
-  if (CHECK_PAGE_ID && CHECK_RECORD_ID) {
-    const recordResponse = await postFromTildaPage(page, '/page/edit/', {
-      pageid: CHECK_PAGE_ID,
-      recordid: CHECK_RECORD_ID,
-      tab: 'content',
-      comm: 'editrecordcontent'
-    });
-    const recordPreview = recordResponse.text.replace(/\s+/g, ' ').slice(0, 220);
-    try {
-      const parsed = JSON.parse(recordResponse.text);
-      if (!parsed.record) {
-        return { ok: false, reason: 'Record API JSON has no record', status: recordResponse.status, preview: recordPreview };
-      }
-    } catch {
-      return { ok: false, reason: 'Record API did not return JSON', status: recordResponse.status, preview: recordPreview };
-    }
-  }
-
-  return { ok: true };
 }
 
 async function prefillLogin(page) {
@@ -147,13 +62,35 @@ async function main() {
   let revealedForHumanCheck = false;
 
   while (Date.now() < deadline) {
-    const auth = await isApiAuthorized(context, page);
+    const auth = await isTildaApiAuthorized(context, page, {
+      projectId: PROJECT_ID,
+      checkPageId: CHECK_PAGE_ID,
+      checkRecordId: CHECK_RECORD_ID
+    });
     if (auth.ok) {
       await gotoProject(page, PROJECT_ID).catch(() => {});
-      await context.storageState({ path: STATE_FILE });
+      fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+      const tmpStateFile = `${STATE_FILE}.tmp-${process.pid}`;
+      await context.storageState({ path: tmpStateFile });
+
+      const freshAuth = await validateStorageStateAuth({
+        storageState: tmpStateFile,
+        projectId: PROJECT_ID,
+        checkPageId: CHECK_PAGE_ID,
+        checkRecordId: CHECK_RECORD_ID
+      });
+      if (!freshAuth.ok) {
+        fs.rmSync(tmpStateFile, { force: true });
+        console.log(`Current browser is authorized, but saved storageState fails in a fresh context. Reason: ${freshAuth.reason}`);
+        if (freshAuth.preview) console.log(`Fresh-context API preview: ${freshAuth.preview}`);
+        await page.waitForTimeout(1000);
+        continue;
+      }
+
+      fs.renameSync(tmpStateFile, STATE_FILE);
       const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
       const tildaCookies = state.cookies.filter((cookie) => String(cookie.domain || '').includes('tilda'));
-      console.log(`Saved ${tildaCookies.length} Tilda cookies to ${STATE_FILE}`);
+      console.log(`Saved and fresh-context-validated ${tildaCookies.length} Tilda cookies to ${STATE_FILE}`);
       await context.close();
       return;
     }
@@ -180,4 +117,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-
