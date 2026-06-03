@@ -6,6 +6,8 @@ Reusable Codex skill and helper scripts for safer Tilda site operations:
 - local-only session capture;
 - page backup before edits;
 - staging page duplication with `noindex`/`nofollow`;
+- storage-state-only publishing;
+- public-page QA guidance for Playwright MCP and Playwright scripts;
 - workflow notes for Tilda's internal web endpoints.
 
 The skill intentionally does not store Tilda passwords, cookies, CSRF tokens, or upload keys in the repository.
@@ -18,6 +20,8 @@ skills/tilda-site-ops/
   references/
     api-workflow.md
     auth.md
+    install.md
+    playwright-mcp.md
     qa.md
     safety-checklist.md
   scripts/
@@ -25,23 +29,53 @@ skills/tilda-site-ops/
     tilda-backup-page.js
     tilda-capture-storage-state.js
     tilda-create-staging-duplicate.js
+    tilda-diagnose-storage-state.js
+    tilda-manual-profile-workbench.js
     tilda-publish-page.js
+    tilda-qa-public-page.js
     tilda-validate-storage-state.js
+examples/
+  tilda-env.example.sh
 ```
 
-## Install Locally
+## Install For Agents
 
-For Codex, symlink the skill folder:
+Codex:
 
 ```bash
+mkdir -p ~/.codex/skills
 ln -s "$(pwd)/skills/tilda-site-ops" ~/.codex/skills/tilda-site-ops
 ```
 
-Install script dependencies:
+Claude Code:
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s "$(pwd)/skills/tilda-site-ops" ~/.claude/skills/tilda-site-ops
+```
+
+For a single project, link or copy the skill to `.claude/skills/tilda-site-ops` or the equivalent skill directory used by the agent. Keep `SKILL.md`, `references/`, and `scripts/` together.
+
+Install script dependencies in this repository:
 
 ```bash
 npm install
+npm run check
 ```
+
+Read `skills/tilda-site-ops/references/install.md` for Codex, Claude, and generic agent loading notes.
+
+## Configure A Project
+
+Use the shell example as a starting point:
+
+```bash
+cp examples/tilda-env.example.sh .env.tilda.local
+$EDITOR .env.tilda.local
+source .env.tilda.local
+```
+
+Do not commit `.env.tilda.local`, storage-state JSON, Chrome profiles, cookies, credentials, `csrf`, upload keys, or request dumps.
 
 ## Quick Start
 
@@ -62,6 +96,28 @@ TILDA_PROJECT_ID=289314 \
 TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/innovator/storage-state.json" \
 node skills/tilda-site-ops/scripts/tilda-validate-storage-state.js
 ```
+
+Diagnose a non-portable storage state:
+
+```bash
+TILDA_PROJECT_ID=289314 \
+TILDA_STORAGE_STATE="$HOME/.local/state/tilda-site-ops/innovator/storage-state.json" \
+node skills/tilda-site-ops/scripts/tilda-diagnose-storage-state.js
+```
+
+Open an explicit one-off visible profile workbench when storage state is non-portable:
+
+```bash
+TILDA_HEADLESS=0 \
+TILDA_PROJECT_ID=289314 \
+TILDA_LOGIN_PROFILE="$HOME/.local/state/tilda-site-ops/innovator/chrome-profile" \
+TILDA_MANUAL_URL="/projects/?projectid=289314" \
+TILDA_MANUAL_HOLD_SECONDS=900 \
+TILDA_CONFIRM_MANUAL_PROFILE=1 \
+node skills/tilda-site-ops/scripts/tilda-manual-profile-workbench.js
+```
+
+This is for current-session manual or project-specific work only. It does not create reusable routine state. Set `TILDA_MANUAL_HOLD_SECONDS=0` if the script should exit immediately after auth and navigation.
 
 Back up a page:
 
@@ -97,6 +153,15 @@ TILDA_PUBLIC_URL="https://example.com/page" \
 TILDA_VERIFY_TEXT="Expected public text" \
 TILDA_CONFIRM_PUBLISH=1 \
 node skills/tilda-site-ops/scripts/tilda-publish-page.js
+```
+
+Run public-page QA:
+
+```bash
+TILDA_PUBLIC_URL="https://example.com/page" \
+TILDA_VERIFY_TEXT="Expected public text" \
+TILDA_QA_SCREENSHOT_DIR="qa-artifacts/example-page" \
+node skills/tilda-site-ops/scripts/tilda-qa-public-page.js
 ```
 
 ## Safety Defaults

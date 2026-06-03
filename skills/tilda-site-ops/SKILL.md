@@ -23,7 +23,9 @@ Use this skill for Tilda work that touches live projects, page copies, blocks, s
 ## Reference Loading
 
 - For login/session work, read `references/auth.md`.
+- For installation, loading, or cross-agent reuse, read `references/install.md`.
 - For page duplication, block operations, settings, and publishing, read `references/api-workflow.md`.
+- For Playwright MCP browser QA, read `references/playwright-mcp.md`.
 - For public-page verification or visual/content changes, read `references/qa.md`.
 - Before making destructive or production changes, read `references/safety-checklist.md`.
 
@@ -33,9 +35,12 @@ Use bundled scripts when they fit the task:
 
 - `scripts/tilda-capture-storage-state.js` for manual browser login and local session capture.
 - `scripts/tilda-validate-storage-state.js` before routine work if auth freshness is uncertain.
+- `scripts/tilda-diagnose-storage-state.js` when a state file contains cookies but fresh validation still goes to login.
+- `scripts/tilda-manual-profile-workbench.js` only for explicit current-session work when Tilda issues profile-bound, non-portable sessions.
 - `scripts/tilda-backup-page.js` before edits.
 - `scripts/tilda-create-staging-duplicate.js` to create a noindex staging page from a production page.
 - `scripts/tilda-publish-page.js` for storage-state-only publishing and optional public URL verification.
+- `scripts/tilda-qa-public-page.js` for headless desktop/mobile public-page checks and optional screenshots.
 
 All scripts are configured by environment variables and should be copied or patched for project-specific needs rather than hardcoding secrets.
 
@@ -84,6 +89,12 @@ On macOS, `$HOME/Library/Application Support/tilda-site-ops/project-name` is als
 Never commit storage state, Chrome profiles, credentials, `csrf`, upload keys, or request dumps. If a repository needs sample config, commit only `.env.example` placeholders.
 
 Capture must validate the saved `TILDA_STORAGE_STATE` in a new clean browser context before treating it as usable. Passing auth in the visible/persistent login browser is not enough.
+
+Scripts create local `*.lock/` directories around persistent Chrome profiles and storage-state writes and refresh active locks with a heartbeat. If a lock blocks work, first check for a running Tilda/Playwright process; remove stale locks only when no owner process is active. `TILDA_LOCK_STALE_MS` controls automatic stale-lock cleanup.
+
+If the state file contains Tilda `userid`/`hash` cookies but a fresh context loses them after navigation and lands on `/login/`, treat the session as profile-bound and non-portable. Do not use that file as routine state. A visible persistent profile may be used only as an explicitly reported manual authenticated browser for inspection or one-off human-supervised work, never as a hidden fallback for routine scripts.
+
+When using manual profile workbench mode, keep all authenticated Tilda reads/writes inside the same persistent browser context and process that waited for login. Do not authenticate in one process and then start a separate routine script expecting `TILDA_STORAGE_STATE` to work.
 
 ## Parallel Agents
 

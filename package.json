@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "commonjs",
   "scripts": {
-    "check": "node --check skills/tilda-site-ops/scripts/tilda-browser-lib.js && node --check skills/tilda-site-ops/scripts/tilda-capture-storage-state.js && node --check skills/tilda-site-ops/scripts/tilda-validate-storage-state.js && node --check skills/tilda-site-ops/scripts/tilda-backup-page.js && node --check skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js && node --check skills/tilda-site-ops/scripts/tilda-publish-page.js"
+    "check": "node --check skills/tilda-site-ops/scripts/tilda-browser-lib.js && node --check skills/tilda-site-ops/scripts/tilda-capture-storage-state.js && node --check skills/tilda-site-ops/scripts/tilda-validate-storage-state.js && node --check skills/tilda-site-ops/scripts/tilda-diagnose-storage-state.js && node --check skills/tilda-site-ops/scripts/tilda-manual-profile-workbench.js && node --check skills/tilda-site-ops/scripts/tilda-backup-page.js && node --check skills/tilda-site-ops/scripts/tilda-create-staging-duplicate.js && node --check skills/tilda-site-ops/scripts/tilda-publish-page.js && node --check skills/tilda-site-ops/scripts/tilda-qa-public-page.js"
   },
   "dependencies": {
     "playwright": "^1.52.0"

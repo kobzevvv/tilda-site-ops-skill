@@ -2,6 +2,7 @@
 
 const {
   gotoProject,
+  isTildaApiAuthorized,
   openTildaContext,
   requiredEnv,
   timestamp
@@ -22,6 +23,8 @@ async function main() {
   const { context, page } = await openTildaContext({ preferStorageState: true });
   try {
     await gotoProject(page, PROJECT_ID);
+    const auth = await isTildaApiAuthorized(context, page, { projectId: PROJECT_ID, checkPageId: SOURCE_PAGE_ID });
+    if (!auth.ok) throw new Error(`Tilda auth check failed before staging duplicate: ${auth.reason}`);
     const result = await page.evaluate(
       async ({ PROJECT_ID, SOURCE_PAGE_ID, STAGING_ALIAS, STAGING_TITLE, STAGING_DESCRIPTION }) => {
         const post = async (url, data) => {

@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
+  acquireLock,
   gotoProject,
   isTildaApiAuthorized,
   openTildaContext,
@@ -52,65 +53,77 @@ async function prefillLogin(page) {
 }
 
 async function main() {
+  const releaseStateLock = acquireLock(`${STATE_FILE}.lock`);
   const { context, page } = await openTildaContext();
-  await gotoProject(page, PROJECT_ID);
-  console.log('Tilda is open. Log in manually if needed; state is saved only after API auth works.');
-  await prefillLogin(page);
+  let contextClosed = false;
+  const closeContext = async () => {
+    if (contextClosed) return;
+    contextClosed = true;
+    await context.close();
+  };
+  try {
+    await gotoProject(page, PROJECT_ID);
+    console.log('Tilda is open. Log in manually if needed; state is saved only after API auth works.');
+    await prefillLogin(page);
 
-  const deadline = Date.now() + 15 * 60 * 1000;
-  let lastLog = 0;
-  let revealedForHumanCheck = false;
+    const deadline = Date.now() + 15 * 60 * 1000;
+    let lastLog = 0;
+    let revealedForHumanCheck = false;
 
-  while (Date.now() < deadline) {
-    const auth = await isTildaApiAuthorized(context, page, {
-      projectId: PROJECT_ID,
-      checkPageId: CHECK_PAGE_ID,
-      checkRecordId: CHECK_RECORD_ID
-    });
-    if (auth.ok) {
-      await gotoProject(page, PROJECT_ID).catch(() => {});
-      fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-      const tmpStateFile = `${STATE_FILE}.tmp-${process.pid}`;
-      await context.storageState({ path: tmpStateFile });
-
-      const freshAuth = await validateStorageStateAuth({
-        storageState: tmpStateFile,
+    while (Date.now() < deadline) {
+      const auth = await isTildaApiAuthorized(context, page, {
         projectId: PROJECT_ID,
         checkPageId: CHECK_PAGE_ID,
         checkRecordId: CHECK_RECORD_ID
       });
-      if (!freshAuth.ok) {
-        fs.rmSync(tmpStateFile, { force: true });
-        console.log(`Current browser is authorized, but saved storageState fails in a fresh context. Reason: ${freshAuth.reason}`);
-        if (freshAuth.preview) console.log(`Fresh-context API preview: ${freshAuth.preview}`);
-        await page.waitForTimeout(1000);
-        continue;
+      if (auth.ok) {
+        await gotoProject(page, PROJECT_ID).catch(() => {});
+        fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+        const tmpStateFile = `${STATE_FILE}.tmp-${process.pid}`;
+        await context.storageState({ path: tmpStateFile });
+
+        const freshAuth = await validateStorageStateAuth({
+          storageState: tmpStateFile,
+          projectId: PROJECT_ID,
+          checkPageId: CHECK_PAGE_ID,
+          checkRecordId: CHECK_RECORD_ID
+        });
+        if (!freshAuth.ok) {
+          fs.rmSync(tmpStateFile, { force: true });
+          console.log(`Current browser is authorized, but saved storageState fails in a fresh context. Reason: ${freshAuth.reason}`);
+          if (freshAuth.preview) console.log(`Fresh-context API preview: ${freshAuth.preview}`);
+          await page.waitForTimeout(1000);
+          continue;
+        }
+
+        fs.renameSync(tmpStateFile, STATE_FILE);
+        const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+        const tildaCookies = state.cookies.filter((cookie) => String(cookie.domain || '').includes('tilda'));
+        console.log(`Saved and fresh-context-validated ${tildaCookies.length} Tilda cookies to ${STATE_FILE}`);
+        await closeContext();
+        return;
       }
 
-      fs.renameSync(tmpStateFile, STATE_FILE);
-      const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-      const tildaCookies = state.cookies.filter((cookie) => String(cookie.domain || '').includes('tilda'));
-      console.log(`Saved and fresh-context-validated ${tildaCookies.length} Tilda cookies to ${STATE_FILE}`);
-      await context.close();
-      return;
+      if (Date.now() - lastLog > 5000) {
+        lastLog = Date.now();
+        const visibleText = await page.locator('body').innerText({ timeout: 1000 }).catch(() => '');
+        if (!revealedForHumanCheck && /human|captcha|check the box|провер|подтверд/iu.test(visibleText)) {
+          revealedForHumanCheck = true;
+          console.log('Tilda requires a human check. Moving the browser window into the visible area.');
+          await revealBrowserForHumanCheck(page);
+        }
+        console.log(`Waiting for API auth. URL: ${page.url()}. Reason: ${auth.reason}. Text: ${visibleText.replace(/\s+/g, ' ').slice(0, 180)}`);
+        if (auth.preview) console.log(`API preview: ${auth.preview}`);
+      }
+      await page.waitForTimeout(1000);
     }
 
-    if (Date.now() - lastLog > 5000) {
-      lastLog = Date.now();
-      const visibleText = await page.locator('body').innerText({ timeout: 1000 }).catch(() => '');
-      if (!revealedForHumanCheck && /human|captcha|check the box|провер|подтверд/iu.test(visibleText)) {
-        revealedForHumanCheck = true;
-        console.log('Tilda requires a human check. Moving the browser window into the visible area.');
-        await revealBrowserForHumanCheck(page);
-      }
-      console.log(`Waiting for API auth. URL: ${page.url()}. Reason: ${auth.reason}. Text: ${visibleText.replace(/\s+/g, ' ').slice(0, 180)}`);
-      if (auth.preview) console.log(`API preview: ${auth.preview}`);
-    }
-    await page.waitForTimeout(1000);
+    await closeContext();
+    throw new Error('Timed out waiting for Tilda login.');
+  } finally {
+    await closeContext().catch(() => {});
+    releaseStateLock();
   }
-
-  await context.close();
-  throw new Error('Timed out waiting for Tilda login.');
 }
 
 main().catch((error) => {

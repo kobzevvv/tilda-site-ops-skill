@@ -28,6 +28,46 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+function acquireLock(lockPath, options = {}) {
+  const staleMs = Number(options.staleMs || process.env.TILDA_LOCK_STALE_MS || 24 * 60 * 60 * 1000);
+  ensureDir(path.dirname(lockPath));
+
+  const tryCreate = () => {
+    fs.mkdirSync(lockPath);
+    fs.writeFileSync(path.join(lockPath, 'owner.json'), JSON.stringify({
+      pid: process.pid,
+      createdAt: new Date().toISOString()
+    }, null, 2));
+  };
+
+  try {
+    tryCreate();
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    const stats = fs.statSync(lockPath);
+    const ageMs = Date.now() - stats.mtimeMs;
+    if (!Number.isFinite(staleMs) || ageMs < staleMs) {
+      throw new Error(`Lock already exists: ${lockPath}. Another Tilda process may be using this profile/state.`);
+    }
+    fs.rmSync(lockPath, { recursive: true, force: true });
+    tryCreate();
+  }
+
+  const heartbeat = setInterval(() => {
+    const now = new Date();
+    fs.utimesSync(lockPath, now, now);
+  }, 60 * 1000);
+  heartbeat.unref?.();
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    clearInterval(heartbeat);
+    fs.rmSync(lockPath, { recursive: true, force: true });
+  };
+}
+
 function frontmostApp(restoreFocus) {
   if (!restoreFocus || process.platform !== 'darwin') return '';
   try {
@@ -90,6 +130,7 @@ async function openTildaContext(options = {}) {
   if (!userDataDir) {
     throw new Error('Missing TILDA_LOGIN_PROFILE for manual login/capture browser mode.');
   }
+  const releaseProfileLock = acquireLock(`${userDataDir}.lock`);
 
   const headless = process.env.TILDA_HEADLESS === '1';
   const windowPosition = process.env.TILDA_WINDOW_POSITION || '2400,100';
@@ -97,15 +138,29 @@ async function openTildaContext(options = {}) {
   const shouldRestoreFocus = process.env.TILDA_RESTORE_FOCUS !== '0';
   const previousApp = frontmostApp(shouldRestoreFocus);
 
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: 'chrome',
-    headless,
-    viewport: DEFAULT_VIEWPORT,
-    args: [
-      `--window-position=${windowPosition}`,
-      `--window-size=${windowSize}`
-    ]
-  });
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: 'chrome',
+      headless,
+      viewport: DEFAULT_VIEWPORT,
+      args: [
+        `--window-position=${windowPosition}`,
+        `--window-size=${windowSize}`
+      ]
+    });
+  } catch (error) {
+    releaseProfileLock();
+    throw error;
+  }
+  const originalClose = context.close.bind(context);
+  context.close = async (...args) => {
+    try {
+      await originalClose(...args);
+    } finally {
+      releaseProfileLock();
+    }
+  };
   restoreFocus(previousApp);
   const page = context.pages()[0] || (await context.newPage());
   return { context, page, mode: 'persistent' };
@@ -223,6 +278,7 @@ async function gotoProject(page, projectId) {
 }
 
 module.exports = {
+  acquireLock,
   ensureDir,
   gotoProject,
   isTildaApiAuthorized,

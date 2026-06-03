@@ -5,6 +5,7 @@ const path = require('path');
 const {
   ensureDir,
   gotoProject,
+  isTildaApiAuthorized,
   openTildaContext,
   requiredEnv,
   safeFileSegment,
@@ -19,6 +20,8 @@ async function main() {
   const { context, page } = await openTildaContext({ preferStorageState: true });
   try {
     await gotoProject(page, PROJECT_ID);
+    const auth = await isTildaApiAuthorized(context, page, { projectId: PROJECT_ID, checkPageId: PAGE_ID });
+    if (!auth.ok) throw new Error(`Tilda auth check failed before backup: ${auth.reason}`);
     const pageData = await page.evaluate(async ({ PAGE_ID }) => {
       const response = await fetch('/page/get/getpage/', {
         method: 'POST',

@@ -5,6 +5,7 @@ Before writes:
 - Confirm the `projectid` and `pageid`.
 - Confirm whether the target is staging or production.
 - Validate `TILDA_STORAGE_STATE` in a fresh context; do not use persistent-profile fallback for routine writes.
+- If diagnosis shows a profile-bound session, stop routine automation and report it instead of treating the state as valid.
 - Back up the page JSON.
 - Keep credentials and session files outside the repo.
 - For staging, set `nosearch=yes` and `meta_nofollow=yes`.

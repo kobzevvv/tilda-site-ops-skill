@@ -22,6 +22,8 @@ Routine reads, writes, settings saves, block operations, and publishing must use
 
 Before write/publish work, run `scripts/tilda-validate-storage-state.js` when the state freshness is uncertain. If validation fails, stop and refresh the state through manual capture.
 
+Exception: when diagnosis proves the Tilda session is profile-bound/non-portable, the only acceptable profile-based automation is an explicitly reported current-session workbench. In that mode, keep login wait, API reads, dumps, and writes in the same visible persistent context process. Do not present the result as reusable auth state, and do not wire it as a silent fallback in routine scripts.
+
 ## Page Settings
 
 Tilda can return `200 OK` while rejecting incomplete settings. Include the existing page values where possible and explicitly set:

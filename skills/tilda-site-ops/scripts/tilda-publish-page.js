@@ -2,6 +2,7 @@
 
 const {
   gotoProject,
+  isTildaApiAuthorized,
   openTildaContext,
   postFromTildaPage,
   requiredEnv
@@ -38,6 +39,8 @@ async function main() {
   const { context, page } = await openTildaContext({ preferStorageState: true });
   try {
     await gotoProject(page, PROJECT_ID);
+    const auth = await isTildaApiAuthorized(context, page, { projectId: PROJECT_ID, checkPageId: PAGE_ID });
+    if (!auth.ok) throw new Error(`Tilda auth check failed before publish: ${auth.reason}`);
     const response = await postFromTildaPage(page, '/page/publish/', {
       projectid: PROJECT_ID,
       pageid: PAGE_ID
