@@ -52,6 +52,8 @@ For agents without native skill loading, point the agent at `SKILL.md` and load 
 
 - `references/auth.md` for login/session capture.
 - `references/api-workflow.md` for read/write/publish operations.
+- `references/agent-setup.md` for first-time Codex, Claude Code, and Playwright MCP setup.
+- `references/markdown-batch-publishing.md` for publishing many Tilda pages from Markdown or another file-based editorial source.
 - `references/qa.md` and `references/playwright-mcp.md` for public-page QA.
 - `references/safety-checklist.md` before destructive or production changes.
 

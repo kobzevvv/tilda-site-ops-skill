@@ -114,6 +114,20 @@ node skills/tilda-site-ops/scripts/tilda-manual-profile-workbench.js
 
 This mode waits for API auth in the visible profile and keeps the browser open. It does not save or validate reusable state. Set `TILDA_MANUAL_HOLD_SECONDS=0` to exit immediately after auth and navigation. If a task needs API dumps or writes while in this mode, implement them inside the same persistent context process rather than starting a separate storage-state routine script.
 
+## Manual Mode Resource Discipline
+
+Visible Chrome is disruptive and expensive compared with headless work. Use it only when the task needs login, CAPTCHA, human checks, visual admin inspection, or a profile-bound same-process workbench.
+
+Rules:
+
+- Announce why visible Chrome is required before opening it.
+- Use `TILDA_CONFIRM_MANUAL_PROFILE=1`; do not hide manual mode behind a fallback.
+- Consolidate Tilda reads, writes, saves, and publishes into one same-process workbench instead of opening many short browser sessions.
+- Do not use visible Chrome for public-page QA. Use Playwright MCP or a headless QA script for public pages.
+- If visible Chrome is disruptive to the user, stop and ask before continuing.
+- Do not lower `TILDA_LOCK_STALE_MS` to seconds-scale values during normal work. Treat that as emergency cleanup only, after checking that no owner process is active.
+- Never run two manual-profile processes against the same `TILDA_LOGIN_PROFILE`.
+
 Recommended multi-agent setup:
 
 - Store one durable state directory per Tilda account or project outside any repository.

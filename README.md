@@ -19,8 +19,10 @@ skills/tilda-site-ops/
   SKILL.md
   references/
     api-workflow.md
+    agent-setup.md
     auth.md
     install.md
+    markdown-batch-publishing.md
     playwright-mcp.md
     qa.md
     safety-checklist.md
@@ -64,6 +66,10 @@ npm run check
 ```
 
 Read `skills/tilda-site-ops/references/install.md` for Codex, Claude, and generic agent loading notes.
+
+For first-time users, read `skills/tilda-site-ops/references/agent-setup.md`. It includes a minimal Codex install command, Playwright MCP config, symlink setup, and a starter prompt.
+
+For section publishing from Markdown, read `skills/tilda-site-ops/references/markdown-batch-publishing.md`. It describes the source layout, dry-run, staging, production, and QA workflow for multi-page batches.
 
 ## Configure A Project
 
@@ -173,4 +179,6 @@ node skills/tilda-site-ops/scripts/tilda-qa-public-page.js
 - Do not commit session files, storage-state JSON, or browser profiles.
 - Do not run multiple persistent Chrome sessions with the same `TILDA_LOGIN_PROFILE`; share `TILDA_STORAGE_STATE` for routine headless work instead.
 - Do not use `/tmp` for durable Tilda session state.
+- Do not open visible Chrome repeatedly. If profile-bound manual mode is required, use one explicit same-process workbench with `TILDA_CONFIRM_MANUAL_PROFILE=1`.
+- Do not reduce `TILDA_LOCK_STALE_MS` to seconds-scale values during normal work.
 - Run public-page QA after publish: status, expected text, desktop/mobile layout, SEO/indexing flags, and changed interactions.

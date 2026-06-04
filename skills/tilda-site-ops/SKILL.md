@@ -12,8 +12,10 @@ Use this skill for Tilda work that touches live projects, page copies, blocks, s
 - Keep Tilda credentials, cookies, `csrf`, upload keys, and browser session artifacts out of repositories.
 - After a valid `TILDA_STORAGE_STATE` has been captured, prefer headless/browser-context API work and avoid bringing Tilda Chrome windows to the user's foreground.
 - Use a visible browser only for login, CAPTCHA/human checks, or explicit visual inspection.
+- Visible Chrome for Tilda admin/API work is a manual-profile exception, not a normal path. State the reason before using it, require `TILDA_CONFIRM_MANUAL_PROFILE=1`, and consolidate the work into one same-process workbench.
 - Treat `TILDA_LOGIN_PROFILE` as a single-writer resource. Do not launch multiple persistent Chrome contexts against the same profile.
 - Treat `TILDA_STORAGE_STATE` as a secret read-only snapshot for routine work. Multiple agents may load it into separate headless contexts, but only refresh or overwrite it intentionally.
+- Do not reduce `TILDA_LOCK_STALE_MS` to seconds-scale values during normal work. Treat that as emergency cleanup only and explain it before doing it.
 - Prefer a staging duplicate before editing a production page.
 - Back up the target page JSON before any write operation.
 - Set staging pages to `nosearch=yes` and `meta_nofollow=yes`.
@@ -24,9 +26,11 @@ Use this skill for Tilda work that touches live projects, page copies, blocks, s
 
 - For login/session work, read `references/auth.md`.
 - For installation, loading, or cross-agent reuse, read `references/install.md`.
+- For first-time Codex/Claude/Playwright MCP setup, read `references/agent-setup.md`.
 - For page duplication, block operations, settings, and publishing, read `references/api-workflow.md`.
 - For Playwright MCP browser QA, read `references/playwright-mcp.md`.
 - For public-page verification or visual/content changes, read `references/qa.md`.
+- For publishing a section or many pages from Markdown/content files, read `references/markdown-batch-publishing.md`.
 - Before making destructive or production changes, read `references/safety-checklist.md`.
 
 ## Script Preference
@@ -72,6 +76,8 @@ node path/to/script.js
 
 If a script opens Chrome visibly during routine work, pass `TILDA_STORAGE_STATE` and set `TILDA_HEADLESS=1`, or use a storage-state based Playwright `browser.newContext({ storageState })` flow. Do not use visible Chrome merely to call Tilda internal endpoints.
 
+Before using any project-specific Tilda script, inspect whether it calls `launchPersistentContext`, reads `TILDA_LOGIN_PROFILE`, or forces `headless:false`. If it does, do not run it for routine work. Patch it to `browser.newContext({ storageState })`, or run it only as an explicit manual-profile exception with `TILDA_CONFIRM_MANUAL_PROFILE=1` and report that exception to the user.
+
 Bundled routine scripts must fail instead of falling back to a persistent profile when `TILDA_STORAGE_STATE` is missing.
 
 ## Session Storage
@@ -95,6 +101,8 @@ Scripts create local `*.lock/` directories around persistent Chrome profiles and
 If the state file contains Tilda `userid`/`hash` cookies but a fresh context loses them after navigation and lands on `/login/`, treat the session as profile-bound and non-portable. Capture must stop immediately instead of retrying in a loop. Do not use that file as routine state. A visible persistent profile may be used only as an explicitly reported manual authenticated browser for inspection or one-off human-supervised work, never as a hidden fallback for routine scripts.
 
 When using manual profile workbench mode, keep all authenticated Tilda reads/writes inside the same persistent browser context and process that waited for login. Do not authenticate in one process and then start a separate routine script expecting `TILDA_STORAGE_STATE` to work.
+
+If visible Chrome is disruptive to the user, stop and ask before continuing manual mode. Public-page QA should use headless browser/curl checks unless the user specifically needs visual inspection of the Tilda admin.
 
 ## Parallel Agents
 
